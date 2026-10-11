@@ -1,0 +1,436 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Playlist Link & QR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Cairo:wght@400;600;700&display=swap">
+<style>
+/* Layout: one working surface. Left column holds the editable M3U link and its actions; right column holds the QR code. Stacks to one column on phones. Direction flips for Arabic. */
+:root {
+  --bg: #eaeff2;
+  --surface: #f9fbfc;
+  --fg: #12202a;
+  --muted: #55687a;
+  --line: #cfd9e0;
+  --accent: #0a6c74;
+  --accent-fg: #ffffff;
+  --ok: #17794a;
+  --err: #b3321f;
+  --qr-bg: #ffffff;
+  --qr-fg: #0d1a22;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e171d;
+    --surface: #15222a;
+    --fg: #e6eef3;
+    --muted: #92a6b5;
+    --line: #263945;
+    --accent: #5cc3cb;
+    --accent-fg: #07161a;
+    --ok: #62d08f;
+    --err: #ff8a78;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e171d;
+  --surface: #15222a;
+  --fg: #e6eef3;
+  --muted: #92a6b5;
+  --line: #263945;
+  --accent: #5cc3cb;
+  --accent-fg: #07161a;
+  --ok: #62d08f;
+  --err: #ff8a78;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  padding-inline: 16px;
+  padding-block: 32px 48px;
+}
+.wrap { max-width: 980px; margin-inline: auto; display: flex; flex-direction: column; gap: 24px; }
+
+header { display: flex; flex-direction: column; gap: 12px; }
+.topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.langs { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.langs button {
+  border: 0;
+  border-radius: 0;
+  min-height: 36px;
+  padding: 6px 14px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.langs button + button { border-inline-start: 1px solid var(--line); }
+.langs button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(28px, 5vw, 44px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0;
+  text-wrap: balance;
+}
+.lede { margin: 0; color: var(--muted); max-width: 60ch; }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 760px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.panel h2 { font-family: var(--font-display); font-size: 18px; margin: 0; letter-spacing: -0.01em; }
+
+label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.field { display: flex; flex-direction: column; gap: 6px; }
+textarea {
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  word-break: break-all;
+  direction: ltr;
+  text-align: left;
+}
+textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+button, .btn {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+}
+button:hover, .btn:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.primary:hover { filter: brightness(1.06); }
+button svg, .btn svg { width: 16px; height: 16px; flex: none; }
+
+.status { min-height: 22px; font-size: 14px; color: var(--ok); font-weight: 500; }
+.status.err { color: var(--err); }
+
+.qr-panel { align-items: center; text-align: center; }
+.qr-box { background: var(--qr-bg); border-radius: 8px; padding: 14px; width: 100%; max-width: 300px; aspect-ratio: 1; border: 1px solid var(--line); }
+.qr-box svg { display: block; width: 100%; height: 100%; }
+.qr-note { margin: 0; font-size: 14px; color: var(--muted); max-width: 32ch; }
+.qr-meta { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+
+.howto { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 760px) { .howto { grid-template-columns: minmax(0, 1fr); } }
+.howto div { display: flex; flex-direction: column; gap: 4px; }
+.howto strong { font-family: var(--font-display); font-size: 15px; }
+.howto span { font-size: 14px; color: var(--muted); }
+
+footer { font-size: 13px; color: var(--muted); }
+
+/* Arabic: right-to-left, Cairo for all text, no letter-spacing (it breaks Arabic joining). */
+html[lang="ar"] body,
+html[lang="ar"] h1,
+html[lang="ar"] h2,
+html[lang="ar"] button,
+html[lang="ar"] .btn,
+html[lang="ar"] .howto strong { font-family: "Cairo", "Segoe UI", Tahoma, system-ui, sans-serif; }
+html[lang="ar"] h1 { letter-spacing: 0; line-height: 1.3; }
+html[lang="ar"] .kicker { letter-spacing: 0; text-transform: none; }
+html[lang="ar"] .langs button[data-lang="en"],
+html[lang="ar"] .langs button[data-lang="fr"] { font-family: var(--font-body); }
+
+@media (prefers-reduced-motion: no-preference) { button { transition: border-color .15s, filter .15s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="topbar">
+      <div class="kicker" data-i18n="kicker">#EXTM3U · Algeria</div>
+      <div class="langs" role="group" aria-label="Language / Langue / اللغة">
+        <button type="button" data-lang="en" lang="en" aria-pressed="true">English</button>
+        <button type="button" data-lang="fr" lang="fr" aria-pressed="false">Français</button>
+        <button type="button" data-lang="ar" lang="ar" aria-pressed="false">العربية</button>
+      </div>
+    </div>
+    <h1 data-i18n="title">Playlist Link &amp; QR</h1>
+    <p class="lede" data-i18n="lede">Copy the M3U link for the Algerian channel list, or scan the QR code with your phone or TV box to move it to another device.</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="link-h">
+      <h2 id="link-h" data-i18n="urlH">Playlist URL</h2>
+      <div class="field">
+        <label for="url" data-i18n="label">M3U link (you can paste a different one and the QR updates)</label>
+        <textarea id="url" spellcheck="false" autocomplete="off" dir="ltr">https://raw.githubusercontent.com/streamlay633-lang/iptv-free-channels/refs/heads/main/playlists/dz.m3u</textarea>
+      </div>
+      <div class="actions">
+        <button class="primary" id="copy" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+          <span data-i18n="copy">Copy link</span>
+        </button>
+        <button id="paste" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4h6v3H9z"/><path d="M15 5h2a2 2 0 0 1 2 2v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a2 2 0 0 1 2-2h2"/></svg>
+          <span data-i18n="paste">Paste</span>
+        </button>
+        <a class="btn" id="open" href="#" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+          <span data-i18n="open">Open file</span>
+        </a>
+      </div>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="panel qr-panel" aria-labelledby="qr-h">
+      <h2 id="qr-h" data-i18n="qrH">QR code</h2>
+      <div class="qr-box" id="qr" role="img" aria-label="QR code for the playlist URL"></div>
+      <p class="qr-note" id="qrnote"></p>
+      <div class="qr-meta" id="qrmeta" dir="auto"></div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="how-h">
+    <h2 id="how-h" data-i18n="howH">Using the link in a player</h2>
+    <div class="howto">
+      <div><strong>VLC</strong><span data-i18n="vlcD">Media, then Open Network Stream. Paste the link and press Play.</span></div>
+      <div><strong data-i18n="iptvT">IPTV apps</strong><span data-i18n="iptvD">Add a playlist, choose the URL or M3U option, and paste the link.</span></div>
+      <div><strong data-i18n="camT">Phone camera</strong><span data-i18n="camD">Scan the QR code, then copy the link from the page that opens into your app.</span></div>
+    </div>
+  </section>
+
+  <footer data-i18n="footer">Playlist contents come from a public GitHub repository. Check that you are allowed to watch the streams where you live.</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(function () {
+  var I18N = {
+    en: {
+      kicker: '#EXTM3U · Algeria',
+      title: 'Playlist Link & QR',
+      lede: 'Copy the M3U link for the Algerian channel list, or scan the QR code with your phone or TV box to move it to another device.',
+      urlH: 'Playlist URL',
+      label: 'M3U link (you can paste a different one and the QR updates)',
+      copy: 'Copy link', paste: 'Paste', open: 'Open file',
+      qrH: 'QR code',
+      qrAria: 'QR code for the playlist URL',
+      qrOk: 'Scan to open the playlist link on another device.',
+      qrEmpty: 'Paste a link to generate its QR code.',
+      qrLong: 'This link is too long to fit in a QR code.',
+      meta: function (n, len) { return n + ' × ' + n + ' modules · ' + len + ' characters'; },
+      howH: 'Using the link in a player',
+      vlcD: 'Media, then Open Network Stream. Paste the link and press Play.',
+      iptvT: 'IPTV apps',
+      iptvD: 'Add a playlist, choose the URL or M3U option, and paste the link.',
+      camT: 'Phone camera',
+      camD: 'Scan the QR code, then copy the link from the page that opens into your app.',
+      footer: 'Playlist contents come from a public GitHub repository. Check that you are allowed to watch the streams where you live.',
+      copied: 'Link copied.',
+      nothing: 'Nothing to copy yet.',
+      blocked: 'Copy is blocked here. The link is selected, press Ctrl+C.',
+      pasteHint: 'Press Ctrl+V (or long-press, then Paste) to replace the link.'
+    },
+    fr: {
+      kicker: '#EXTM3U · Algérie',
+      title: 'Lien de playlist et QR',
+      lede: 'Copiez le lien M3U de la liste des chaînes algériennes, ou scannez le code QR avec votre téléphone ou votre box TV pour le transférer sur un autre appareil.',
+      urlH: 'URL de la playlist',
+      label: 'Lien M3U (vous pouvez en coller un autre, le code QR se met à jour)',
+      copy: 'Copier le lien', paste: 'Coller', open: 'Ouvrir le fichier',
+      qrH: 'Code QR',
+      qrAria: 'Code QR de l’URL de la playlist',
+      qrOk: 'Scannez pour ouvrir le lien de la playlist sur un autre appareil.',
+      qrEmpty: 'Collez un lien pour générer son code QR.',
+      qrLong: 'Ce lien est trop long pour un code QR.',
+      meta: function (n, len) { return n + ' × ' + n + ' modules · ' + len + ' caractères'; },
+      howH: 'Utiliser le lien dans un lecteur',
+      vlcD: 'Média, puis Ouvrir un flux réseau. Collez le lien et appuyez sur Lire.',
+      iptvT: 'Applications IPTV',
+      iptvD: 'Ajoutez une playlist, choisissez l’option URL ou M3U, puis collez le lien.',
+      camT: 'Appareil photo',
+      camD: 'Scannez le code QR, puis copiez le lien depuis la page qui s’ouvre dans votre application.',
+      footer: 'Le contenu de la playlist provient d’un dépôt GitHub public. Vérifiez que vous avez le droit de regarder ces flux là où vous vivez.',
+      copied: 'Lien copié.',
+      nothing: 'Rien à copier pour l’instant.',
+      blocked: 'La copie est bloquée ici. Le lien est sélectionné, appuyez sur Ctrl+C.',
+      pasteHint: 'Appuyez sur Ctrl+V (ou appui long, puis Coller) pour remplacer le lien.'
+    },
+    ar: {
+      kicker: '#EXTM3U · الجزائر',
+      title: 'رابط القائمة ورمز QR',
+      lede: 'انسخ رابط M3U لقائمة القنوات الجزائرية، أو امسح رمز QR بهاتفك أو بجهاز التلفزيون لنقله إلى جهاز آخر.',
+      urlH: 'رابط القائمة',
+      label: 'رابط M3U (يمكنك لصق رابط آخر وسيتحدّث رمز QR)',
+      copy: 'نسخ الرابط', paste: 'لصق', open: 'فتح الملف',
+      qrH: 'رمز QR',
+      qrAria: 'رمز QR لرابط القائمة',
+      qrOk: 'امسح الرمز لفتح رابط القائمة على جهاز آخر.',
+      qrEmpty: 'الصق رابطًا لإنشاء رمز QR الخاص به.',
+      qrLong: 'هذا الرابط أطول من أن يتسع في رمز QR.',
+      meta: function (n, len) { return n + ' × ' + n + ' وحدة · ' + len + ' حرفًا'; },
+      howH: 'استخدام الرابط في مشغّل',
+      vlcD: 'من قائمة الوسائط اختر فتح بث شبكة. الصق الرابط ثم اضغط تشغيل.',
+      iptvT: 'تطبيقات IPTV',
+      iptvD: 'أضف قائمة تشغيل، واختر خيار الرابط أو M3U، ثم الصق الرابط.',
+      camT: 'كاميرا الهاتف',
+      camD: 'امسح رمز QR، ثم انسخ الرابط من الصفحة التي تُفتح والصقه في تطبيقك.',
+      footer: 'محتوى القائمة مأخوذ من مستودع عام على GitHub. تأكد من أنك مسموح لك بمشاهدة هذه البثوث في بلدك.',
+      copied: 'تم نسخ الرابط.',
+      nothing: 'لا يوجد ما يُنسخ بعد.',
+      blocked: 'النسخ محظور هنا. تم تحديد الرابط، اضغط Ctrl+C.',
+      pasteHint: 'اضغط Ctrl+V (أو اضغط مطولًا ثم لصق) لاستبدال الرابط.'
+    }
+  };
+
+  var urlEl = document.getElementById('url');
+  var qrEl = document.getElementById('qr');
+  var statusEl = document.getElementById('status');
+  var openEl = document.getElementById('open');
+  var metaEl = document.getElementById('qrmeta');
+  var noteEl = document.getElementById('qrnote');
+  var langBtns = document.querySelectorAll('.langs button');
+  var timer;
+  var lang = 'en';
+
+  function t(key) { return I18N[lang][key]; }
+
+  function say(msg, isErr) {
+    statusEl.textContent = msg;
+    statusEl.className = 'status' + (isErr ? ' err' : '');
+    clearTimeout(timer);
+    timer = setTimeout(function () { statusEl.textContent = ''; }, 2600);
+  }
+
+  function isHttp(v) { return /^https?:\/\/\S+$/i.test(v); }
+
+  var qrState = 'ok', qrN = 0;
+
+  function render() {
+    var v = urlEl.value.trim();
+    qrEl.textContent = '';
+    qrN = 0;
+    if (!v) {
+      qrState = 'empty';
+      openEl.removeAttribute('href');
+    } else {
+      try {
+        var qr = qrcode(0, 'M');
+        qr.addData(v);
+        qr.make();
+        var n = qr.getModuleCount(), quiet = 2, size = n + quiet * 2, d = '';
+        for (var r = 0; r < n; r++) {
+          for (var c = 0; c < n; c++) {
+            if (qr.isDark(r, c)) d += 'M' + (c + quiet) + ' ' + (r + quiet) + 'h1v1h-1z';
+          }
+        }
+        qrEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + size + ' ' + size + '" shape-rendering="crispEdges"><rect width="' + size + '" height="' + size + '" fill="#ffffff"/><path d="' + d + '" fill="#0d1a22"/></svg>';
+        qrState = 'ok';
+        qrN = n;
+      } catch (e) {
+        qrState = 'long';
+      }
+      if (isHttp(v)) openEl.setAttribute('href', v); else openEl.removeAttribute('href');
+    }
+    renderQrText();
+  }
+
+  function renderQrText() {
+    var v = urlEl.value.trim();
+    noteEl.textContent = qrState === 'ok' ? t('qrOk') : qrState === 'empty' ? t('qrEmpty') : t('qrLong');
+    metaEl.textContent = qrState === 'ok' ? t('meta')(qrN, v.length) : '';
+    qrEl.setAttribute('aria-label', t('qrAria'));
+  }
+
+  function applyLang(next, save) {
+    if (!I18N[next]) next = 'en';
+    lang = next;
+    var root = document.documentElement;
+    root.lang = next;
+    root.dir = next === 'ar' ? 'rtl' : 'ltr';
+    var nodes = document.querySelectorAll('[data-i18n]');
+    for (var i = 0; i < nodes.length; i++) {
+      var key = nodes[i].getAttribute('data-i18n');
+      if (typeof I18N[next][key] === 'string') nodes[i].textContent = I18N[next][key];
+    }
+    for (var j = 0; j < langBtns.length; j++) {
+      langBtns[j].setAttribute('aria-pressed', langBtns[j].getAttribute('data-lang') === next ? 'true' : 'false');
+    }
+    statusEl.textContent = '';
+    renderQrText();
+    if (save) { try { localStorage.setItem('playlist-qr-lang', next); } catch (e) {} }
+  }
+
+  function fallbackCopy() {
+    urlEl.focus();
+    urlEl.select();
+    try { return document.execCommand('copy'); } catch (e) { return false; }
+  }
+
+  document.getElementById('copy').addEventListener('click', function () {
+    var v = urlEl.value.trim();
+    if (!v) { say(t('nothing'), true); return; }
+    var done = function () { say(t('copied')); };
+    var fail = function () {
+      if (fallbackCopy()) done(); else say(t('blocked'), true);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(v).then(done, fail);
+    } else { fail(); }
+  });
+
+  // Reading the clipboard is refused in this view, so Paste focuses the box and relies on the viewer's own paste.
+  document.getElementById('paste').addEventListener('click', function () {
+    urlEl.focus();
+    urlEl.select();
+    say(t('pasteHint'));
+  });
+
+  for (var k = 0; k < langBtns.length; k++) {
+    langBtns[k].addEventListener('click', function (e) {
+      applyLang(e.currentTarget.getAttribute('data-lang'), true);
+    });
+  }
+
+  urlEl.addEventListener('input', render);
+  urlEl.addEventListener('focus', function () { urlEl.select(); });
+
+  var start = 'en';
+  try { start = localStorage.getItem('playlist-qr-lang') || ''; } catch (e) { start = ''; }
+  if (!I18N[start]) {
+    var nav = (navigator.language || 'en').slice(0, 2).toLowerCase();
+    start = I18N[nav] ? nav : 'en';
+  }
+  render();
+  applyLang(start, false);
+})();
+</script>
+
+</body></html>
